@@ -18,6 +18,12 @@ object GraphPatternMatching {
   val QueryVerticesArray = QueryGraph.vertices.toArray()
   val QueryTripletsArray = QueryGraph.triplets.toArray()
 
+  val QuerySortMap : Map[String,Array[Long]] = extract_array()
+
+  QuerySortMap.foreach((x) => println("label: "+ x._1 + "  array: "+ x._2.mkString(" ")))
+  //println("map: "+sort_map.mkString("\n"))
+
+  val DataTripletsArray = DataGraph.triplets.toArray()
 
   def main(args: Array[String]) {
 
@@ -32,25 +38,42 @@ object GraphPatternMatching {
   
   def strict_simulation() = {
 
-
     
     //graph_simulation(DataGraph, QueryGraph.QueryGraph)
+  }
+
+  def extract_array() : Map[String,Array[Long]] = {
+
+    var map : Map[String,Array[Long]] = Map()
+
+    for(ele <- QueryLabels)
+    {
+      var tmp_array : Array[Long] = Array()
+
+      for(lab <- QueryVerticesArray){
+        if(lab._2 == ele){
+          tmp_array = tmp_array :+ lab._1
+        }
+      }
+      map+= (ele -> tmp_array)
+    }
+    return map
   }
   
   def graph_simulation(data:Graph[(String, Boolean,Array[Long], Array[String],Boolean),String]) : Boolean = {
 
-    val iniArrayChild : Array[Long] = Array(1)
+    val iniArrayChild : Array[Long] = Array()
     val iniArrayParent : Array[String] = Array("A")
 
     println("Start Pregel")
 
-    val result_graph = data.pregel(("A", false, iniArrayChild, iniArrayParent, false), Int.MaxValue, EdgeDirection.Either )(vprog,
+    val result_graph = data.pregel(("", false, iniArrayChild, iniArrayParent, false), 10, EdgeDirection.Either )(vprog,
 
       triplet => {
-        println("--------------DstID:->"+triplet.dstId+"  SrcId:->"+triplet.srcId+"  array: " + triplet.dstAttr._3)
+        println("--------------DstID:->"+triplet.dstId+"  SrcId:->"+triplet.srcId+"  array: " + triplet.dstAttr._3.mkString(""))
         if (triplet.dstAttr._5 == true) {
-          println("DstID:->"+triplet.dstId+"  SrcId:->"+triplet.srcId+"  array: " + triplet.dstAttr._3)
-          Iterator((triplet.srcId, (triplet.dstAttr._1, true, triplet.dstAttr._3, triplet.dstAttr._4, true)))
+          println("DstID:->"+triplet.dstId+"  SrcId:->"+triplet.srcId+"  array: " + triplet.dstAttr._3.mkString(""))
+          Iterator((triplet.srcId, (triplet.dstAttr._1, triplet.dstAttr._2, triplet.dstAttr._3, triplet.dstAttr._4, false)))
           //Iterator((triplet.dstId, (triplet.srcAttr._1, true, triplet.srcAttr._3, triplet.srcAttr._4)))
         } else {
           Iterator.empty
@@ -66,35 +89,17 @@ object GraphPatternMatching {
   def init_nodes( dist: (String, Boolean, Array[Long], Array[String],Boolean)) :
   (String, Boolean, Array[Long], Array[String],Boolean) = {
 
-    var sort_map : Map[String,Array[Long]] = Map()
-
-    for(ele <- QueryLabels)
-      {
-
-        var tmp_array : Array[Long] = Array()
-
-        for(lab <- QueryVerticesArray){
-          if(lab._2 == ele){
-            tmp_array = tmp_array :+ lab._1
-          }
-        }
-        sort_map+= (ele -> tmp_array)
-      }
-
-    println("map: "+sort_map)
-
     val iniArrayChild : Array[Long] = Array()
     val iniArrayParent : Array[String] = Array("")
     var newVertices = ("", false, iniArrayChild, iniArrayParent, false)
 
     if(QueryLabels contains(dist._1)){
-      var temMatch_child: Array[Long] = sort_map(dist._1)
+      var temMatch_child: Array[Long] = QuerySortMap(dist._1)
 
       newVertices = (dist._1, true, temMatch_child, dist._4, true)
     } else{newVertices = (dist._1, false, dist._3, dist._4, false)}
 
-
-    println("Init newVertices: " + newVertices._3.mkString("\n"))
+    println("Init match set: " + newVertices._3.mkString("\n"))
 
     return newVertices
   }
@@ -104,41 +109,99 @@ object GraphPatternMatching {
     dest.diff(tmp)
   }
 
+
+  //If the node(id) has children but node in query doesn't, return false.
+  //If the node(id) doesn't have children but node in query has't, return false. Otherwise true
+  def check_children(id:VertexId, match_set : Array[Long]):Boolean ={
+
+    //the node in query has children?
+    var b_check_query = QueryTripletsArray.map{case(tri) => if(match_set.contains(tri.srcId)) true else false }
+
+    var b_check = DataTripletsArray.map { case (tri) =>  if(tri.srcId == id) true  else false  }
+
+    if(b_check.contains(true) && b_check_query.contains(true)){
+      true
+    }
+    else if( !b_check.contains(true) && !b_check_query.contains(true) ){
+      true
+    }
+    else{
+      false
+    }
+  }
+
+  def check_parent(id:VertexId, match_set : Array[Long]):Boolean ={
+
+    //the node in query has children?
+    var b_check_query = QueryTripletsArray.map{case(tri) => if(match_set.contains(tri.dstId)) true else false }
+
+    var b_check = DataTripletsArray.map { case (tri) =>  if(tri.dstId == id) true  else false  }
+
+    if(b_check.contains(true) && b_check_query.contains(true)){
+      true
+    }
+    else if( !b_check.contains(true) && !b_check_query.contains(true) ){
+      true
+    }
+    else{
+      false
+    }
+  }
+
+
   def vprog(id:VertexId, dist: (String, Boolean, Array[Long], Array[String],Boolean),
             newDist:(String, Boolean, Array[Long], Array[String],Boolean))
   :(String, Boolean, Array[Long], Array[String],Boolean)={
 
-    if (newDist._2 == false){
-      init_nodes(dist)
+    if (newDist._2 == false  && newDist._1 == ""){
+      return init_nodes(dist)
     }
     else{
 
-      var iniArr : Array[String] = Array("A")
+      var match_parent_array : Array[String] = Array("")
       var match_array: Array[Long] = Array()
+      var change = false
 
-      for(ele <- dist._3){
+      //If the current vertex is false
+      if(dist._2 == false){
+        return (dist._1, false, match_array, match_parent_array, true)
+      }
 
+      //If the message from the vertex is false
+      if(newDist._2 == false){
+        if(check_children(id, dist._3) == false){
+          return (dist._1, false, match_array, match_parent_array, true)
+        }
 
-        var temp1 = QueryTripletsArray.map{case(tri) =>
-          if(tri.srcId == ele)
-            if (newDist._3 contains(tri.dstId)){
+        if(check_parent(id, dist._3) == false){
+          return (dist._1, false, match_array, match_parent_array, true)
+        }
+
+        return (dist._1, true, match_array, match_parent_array, false)
+      }
+
+      for(node <- dist._3){             // Iterate each node in match_set
+        var temp_match = QueryTripletsArray.map{case(tri) =>
+          if(tri.srcId == node)                     //Find the matched node in Query
+            if (newDist._3.contains(tri.dstId)){    //Compare with the new match_child_set.
               true
             }
             else{false}
           else{false}
         }
-        if (temp1 contains(true)){}
-        else{
-          match_array= remove(ele, dist._3)
-        }
 
+        if (temp_match.contains(true)){change = false}
+        else{
+          match_array= remove(node, dist._3)
+          change = true
+        }
       }
 
-      if(match_array.length>0){
-        (dist._1, true, match_array, iniArr, true)
+      if(match_array.length>0 ){
+        (dist._1, true, match_array, match_parent_array, change)
       }
       else{
-        (dist._1, false, match_array, iniArr, false)
+        (dist._1, false, match_array, match_parent_array, change)
       }
     }
   }
