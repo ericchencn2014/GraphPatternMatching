@@ -12,7 +12,7 @@ object GraphPatternMatching {
 
   val sc = new SparkContext("local", "GraphPatternMatching")
   val QueryGraph : Graph[String,String] = build_QueryGraph(sc)
-  val DataGraph : Graph[(String, Boolean,Array[Long], Array[String]),String] = build_DataGraph(sc)
+  val DataGraph : Graph[(String, Boolean,Array[Long], Array[String],Boolean),String] = build_DataGraph(sc)
 
   val QueryLabels :  Array[(String)] = QueryGraph.vertices.map{ case (id,label) => label}.collect.distinct
   val QueryVerticesArray = QueryGraph.vertices.toArray()
@@ -37,21 +37,21 @@ object GraphPatternMatching {
     //graph_simulation(DataGraph, QueryGraph.QueryGraph)
   }
   
-  def graph_simulation(data:Graph[(String, Boolean,Array[Long], Array[String]),String]) : Boolean = {
+  def graph_simulation(data:Graph[(String, Boolean,Array[Long], Array[String],Boolean),String]) : Boolean = {
 
     val iniArrayChild : Array[Long] = Array(1)
     val iniArrayParent : Array[String] = Array("A")
 
     println("Start Pregel")
 
-    val result_graph = data.pregel(("A", false, iniArrayChild, iniArrayParent), 1, EdgeDirection.Either )(vprog,
+    val result_graph = data.pregel(("A", false, iniArrayChild, iniArrayParent, false), Int.MaxValue, EdgeDirection.Either )(vprog,
 
       triplet => {
         println("--------------DstID:->"+triplet.dstId+"  SrcId:->"+triplet.srcId+"  array: " + triplet.dstAttr._3)
-        if (triplet.dstAttr._2 == true) {
+        if (triplet.dstAttr._5 == true) {
           println("DstID:->"+triplet.dstId+"  SrcId:->"+triplet.srcId+"  array: " + triplet.dstAttr._3)
-          //Iterator((triplet.srcId, (triplet.dstAttr._1, true, triplet.dstAttr._3, triplet.dstAttr._4)))
-          Iterator((triplet.dstId, (triplet.srcAttr._1, true, triplet.srcAttr._3, triplet.srcAttr._4)))
+          Iterator((triplet.srcId, (triplet.dstAttr._1, true, triplet.dstAttr._3, triplet.dstAttr._4, true)))
+          //Iterator((triplet.dstId, (triplet.srcAttr._1, true, triplet.srcAttr._3, triplet.srcAttr._4)))
         } else {
           Iterator.empty
         }
@@ -63,8 +63,8 @@ object GraphPatternMatching {
 
 
   
-  def init_nodes( dist: (String, Boolean, Array[Long], Array[String])) :
-  (String, Boolean, Array[Long], Array[String]) = {
+  def init_nodes( dist: (String, Boolean, Array[Long], Array[String],Boolean)) :
+  (String, Boolean, Array[Long], Array[String],Boolean) = {
 
     var sort_map : Map[String,Array[Long]] = Map()
 
@@ -81,15 +81,17 @@ object GraphPatternMatching {
         sort_map+= (ele -> tmp_array)
       }
 
+    println("map: "+sort_map)
+
     val iniArrayChild : Array[Long] = Array()
     val iniArrayParent : Array[String] = Array("")
-    var newVertices = ("", false, iniArrayChild, iniArrayParent)
+    var newVertices = ("", false, iniArrayChild, iniArrayParent, false)
 
     if(QueryLabels contains(dist._1)){
-      var temMatch_child2: Array[Long] = sort_map(dist._1)
+      var temMatch_child: Array[Long] = sort_map(dist._1)
 
-      newVertices = (dist._1, true, temMatch_child2, dist._4)
-    } else{newVertices = (dist._1, false, dist._3, dist._4)}
+      newVertices = (dist._1, true, temMatch_child, dist._4, true)
+    } else{newVertices = (dist._1, false, dist._3, dist._4, false)}
 
 
     println("Init newVertices: " + newVertices._3.mkString("\n"))
@@ -102,8 +104,9 @@ object GraphPatternMatching {
     dest.diff(tmp)
   }
 
-  def vprog(id:VertexId, dist: (String, Boolean, Array[Long], Array[String]), newDist:(String, Boolean, Array[Long], Array[String]))
-  :(String, Boolean, Array[Long], Array[String])={
+  def vprog(id:VertexId, dist: (String, Boolean, Array[Long], Array[String],Boolean),
+            newDist:(String, Boolean, Array[Long], Array[String],Boolean))
+  :(String, Boolean, Array[Long], Array[String],Boolean)={
 
     if (newDist._2 == false){
       init_nodes(dist)
@@ -112,6 +115,7 @@ object GraphPatternMatching {
 
       var iniArr : Array[String] = Array("A")
       var match_array: Array[Long] = Array()
+
       for(ele <- dist._3){
 
 
@@ -131,12 +135,11 @@ object GraphPatternMatching {
       }
 
       if(match_array.length>0){
-        (dist._1, true, match_array, iniArr)
+        (dist._1, true, match_array, iniArr, true)
       }
       else{
-        (dist._1, false, match_array, iniArr)
+        (dist._1, false, match_array, iniArr, false)
       }
-    
     }
   }
 
@@ -153,27 +156,34 @@ object GraphPatternMatching {
 */
 
 
-  def mergeMsg(firstMsg : (String, Boolean, Array[Long], Array[String]), secondMsg : (String, Boolean, Array[Long], Array[String])):
-  (String, Boolean, Array[Long], Array[String]) ={
+  def mergeMsg(firstMsg : (String, Boolean, Array[Long], Array[String],Boolean),
+               secondMsg : (String, Boolean, Array[Long], Array[String],Boolean)):
+  (String, Boolean, Array[Long], Array[String],Boolean) ={
 
     var msg = firstMsg._3 ++ secondMsg._3
     var iniArr : Array[String] = Array("A")
-    return ("", true, msg, iniArr)
+    return ("", true, msg, iniArr, firstMsg._5)
   }
 
   
-  def build_DataGraph(sc:SparkContext): Graph[(String, Boolean, Array[Long], Array[String]), String] = {
+  def build_DataGraph(sc:SparkContext): Graph[(String, Boolean, Array[Long], Array[String],Boolean), String] = {
 
-    val match_child_set = new Array[Long](0)
+    val match_set = new Array[Long](0)
     val match_parent_set = new Array[String](0)
 
     // Create an RDD for the vertices
-    val vertices_map: RDD[(VertexId, (String, Boolean, Array[Long], Array[String]))] =
-            sc.parallelize(Array((1L, ("A", false, match_child_set, match_parent_set)), 
-                (2L,("B",false,match_child_set,match_parent_set)), 
-                (3L,("A",false,match_child_set,match_parent_set)), 
-                (4L, ("B",false,match_child_set,match_parent_set)), 
-                (5L, ("C",false,match_child_set,match_parent_set))))
+    val vertices_map: RDD[(VertexId,
+      (String,          //label
+      Boolean,          //if this vertex match any vertex in Query, set it true, otherwise false
+      Array[Long],      //protential matched vertices of this vertex
+      Array[String],    //labels from this vertex's parents
+      Boolean)          //the flag for every change in match_set
+      )] =
+            sc.parallelize(Array((1L, ("A", false, match_set, match_parent_set, false)),
+                (2L,("B",false,match_set,match_parent_set, false)),
+                (3L,("A",false,match_set,match_parent_set, false)),
+                (4L, ("B",false,match_set,match_parent_set, false)),
+                (5L, ("C",false,match_set,match_parent_set, false))))
     
     // Create an RDD for edges
     var edges_map: RDD[Edge[String]] =sc.parallelize(Array(Edge(1, 2, ""),    Edge(2, 1, ""),
