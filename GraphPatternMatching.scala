@@ -6,9 +6,14 @@
 import org.apache.spark._
 import org.apache.spark.graphx._
 import org.apache.spark.rdd.RDD
-
+import org.apache.log4j.Logger
+import org.apache.log4j.Level
 
 object GraphPatternMatching {
+
+  //turn off the log information
+  Logger.getLogger("org").setLevel(Level.OFF)
+  Logger.getLogger("akka").setLevel(Level.OFF)
 
   val sc = new SparkContext("local", "GraphPatternMatching")
   val QueryGraph : Graph[String,String] = build_QueryGraph(sc)
@@ -27,46 +32,70 @@ object GraphPatternMatching {
   QuerySortMap.foreach((x) => println("SortMap label: "+ x._1 + "  array: "+ x._2.mkString(" ")))
 
   var DataTripletsArray = DataGraph.triplets.toArray()
+  val DataVerticesArray = DataGraph.vertices.toArray()
 
   var DataArray :         //contains source vertexId and match flag, and des vertexId and match flag
   Array[((Long,Boolean), (Long,Boolean))] =
     DataTripletsArray.map{ case(tri) =>
       ((tri.srcId,tri.srcAttr._2), (tri.dstId, tri.srcAttr._2))}
 
-  val EccGraph = build_EccGraph(sc)
-
-
   def main(args: Array[String]) {
 
-    println("Query Labels: " + QueryLabels.deep.mkString(" , "))
 
+    //dual_simulation(DataGraph)
     tight_simulation
 
   }
-
 
   
   def tight_simulation() : Graph[(String, Boolean,Array[Long], Array[String],Boolean,Boolean),String]= {
 
     val dual_graph =  dual_simulation(DataGraph)
 
+    println("end of dual")
 
     var map_query_sssp : Map[Long,Array[(Long,Double)]] = Map()
 
     var map_data_sssp : Map[Long,Array[(Long,Double)]] = Map()
 
-    var map_min_ecc : Map[Long,Double] = Map()
+    var map_query_min_ecc : Map[Long,Double] = Map()
 
-    for(x <- QueryGraph.vertices){
-      var sssp = shortest_path(x._1)
+    var map_data_min_ecc : Map[Long,Double] = Map()
+
+    for(x <- QueryVerticesArray){
+
+      val tmp_graph = QueryGraph.mapVertices((id, _) => if (id == x._1) 0 else Double.PositiveInfinity)
+      val input_graph = tmp_graph.mapEdges( (str) => 1.0)
+
+      var sssp = shortest_path(x._1, input_graph)
+
       map_query_sssp+=(x._1 -> sssp.vertices.toArray())
 
       var ecc = sssp.vertices.filter(distance => distance._2 != Double.PositiveInfinity).collect.sortBy(v => v._2).reverse.head._2
-      map_min_ecc+=(x._1 -> ecc)
+      map_query_min_ecc+=(x._1 -> ecc)
     }
 
-    val radius : Double = map_min_ecc.minBy(_._2)._2
-    val vId :Long = map_min_ecc.minBy(_._2)._1
+    map_query_sssp.foreach((x) => println("map_query_sssp$$$$$$$$$$$$$: "+ x._1 + "  array: "+ x._2.mkString(" ")))
+    map_query_min_ecc.foreach((x) => println("map_query_min_ecc: "+ x._1 + "  array: "+ x._2))
+
+    for(x <- DataVerticesArray){
+
+      val tmp_graph = DataGraph.mapVertices((id, _) => if (id == x._1) 0 else Double.PositiveInfinity)
+      val input_graph = tmp_graph.mapEdges( (str) => 1.0)
+
+      var sssp = shortest_path(x._1, input_graph)
+
+      map_data_sssp+=(x._1 -> sssp.vertices.toArray())
+
+      var ecc = sssp.vertices.filter(distance => distance._2 != Double.PositiveInfinity).collect.sortBy(v => v._2).reverse.head._2
+      map_data_min_ecc+=(x._1 -> ecc)
+
+    }
+    map_data_sssp.foreach((x) => println("map_data_sssp************: "+ x._1 + "  array: "+ x._2.mkString(" ")))
+    map_data_min_ecc.foreach((x) => println("map_data_min_ecc: "+ x._1 + "  array: "+ x._2))
+
+    val radius : Double = map_query_min_ecc.minBy(_._2)._2
+    val vId :Long = map_query_min_ecc.minBy(_._2)._1
     println("vertex: "+ vId+ "  radius: "+ radius)
 
     var label : String = ""
@@ -76,12 +105,17 @@ object GraphPatternMatching {
       }
     }
 
+    println("label :" + label)
+
+    val dual_graph_array = dual_graph.vertices.toArray()
     var data_candidate : Array[Long] = Array()
-    for(x <- dual_graph.vertices){
+    for(x <- dual_graph_array){
       if(label == x._2._1){
         data_candidate = data_candidate:+x._1
       }
     }
+    println("data_candidate")
+    data_candidate.foreach(println)
 
     var final_vertex  : Array[Long] = Array()
     for(x <- data_candidate){
@@ -89,16 +123,20 @@ object GraphPatternMatching {
       val ball_graph = dual_simulation(ball)
 
       var tmp : Array[Long] = Array()
-      for(x <- ball_graph.vertices){
+      for(x <- ball_graph.vertices.toArray()){
         if(x._2._2 == true){
           tmp = tmp:+x._1
         }
       }
 
-      final_vertex ++ tmp
+      final_vertex = final_vertex ++ tmp
     }
+    final_vertex = final_vertex.distinct
 
-    val subgraph = DataGraph.subgraph(vpred = (v_id, attr) => final_vertex.contains(v_id))
+    println("final_vertex")
+    final_vertex.foreach(println)
+
+    val subgraph = dual_graph.subgraph(vpred = (v_id, attr) => final_vertex.contains(v_id))
     println("tight graph: " + subgraph.vertices.take(10).mkString("\n"))
 
     return subgraph
@@ -126,7 +164,7 @@ object GraphPatternMatching {
   def dual_simulation(data:Graph[(String, Boolean,Array[Long], Array[String],Boolean,Boolean),String]) :
   Graph[(String, Boolean,Array[Long], Array[String],Boolean,Boolean),String]= {
 
-    val iniArrayChild : Array[Long] = Array(0)
+    val iniArrayChild : Array[Long] = Array()
     val iniArrayParent : Array[String] = Array("")
 
     println("Start Pregel")
@@ -134,13 +172,15 @@ object GraphPatternMatching {
     val result_graph = data.pregel(("", false, iniArrayChild, iniArrayParent, false, false), 10, EdgeDirection.Either )(vprog,
 
       triplet => {
-        println("--------------DstID:->"+triplet.dstId+"  SrcId:->"+triplet.srcId+"  array: " + triplet.dstAttr._3.mkString(""))
+        println("--------------DstID:->"+triplet.dstId+"  SrcId:->"+triplet.srcId+"  array: " + triplet.dstAttr._3.mkString("")+
+        "  bSend "+ triplet.dstAttr._5)
+
         if (triplet.dstAttr._5 == true) {
           println("DstID:->"+triplet.dstId+"  SrcId:->"+triplet.srcId+"  array: " + triplet.dstAttr._3.mkString(""))
           Iterator((triplet.srcId, ( triplet.dstAttr._1, triplet.dstAttr._2, triplet.dstAttr._3, triplet.dstAttr._4, false, true)))
 
-          println("srcID:->"+triplet.dstId+"  dstId:->"+triplet.srcId+"  array: " + triplet.dstAttr._3.mkString(""))
-          Iterator((triplet.dstId, ( triplet.srcAttr._1, triplet.srcAttr._2, triplet.srcAttr._3, triplet.srcAttr._4, false, true)))
+  //        println("srcID:->"+triplet.dstId+"  dstId:->"+triplet.srcId+"  array: " + triplet.dstAttr._3.mkString(""))
+//          Iterator((triplet.dstId, ( triplet.srcAttr._1, triplet.srcAttr._2, triplet.srcAttr._3, triplet.srcAttr._4, false, true)))
           //Iterator((triplet.dstId, (triplet.srcAttr._1, true, triplet.srcAttr._3, triplet.srcAttr._4)))
         } else {
           Iterator.empty
@@ -161,22 +201,20 @@ object GraphPatternMatching {
 
     var ball_vertex : Array[Long] = Array()
 
-    for(x <- map_sssp(1)){
-      if(x._2 <= 2){
+    for(x <- map_sssp(id)){
+      if(x._2 <= radius){
         ball_vertex=ball_vertex:+x._1
       }
     }
 
     val subgraph = graph_ball.subgraph(vpred = (v_id, attr) => ball_vertex.contains(v_id))
-    println("Subgraph: "+ subgraph.vertices.take(5).mkString("\n"))
+    println("create_ball subgraph: "+ subgraph.vertices.take(5).mkString("\n"))
     return subgraph
   }
 
+  def shortest_path(sourceId: VertexId, graph: Graph[Double, Double]): Graph[Double,Double] = {
 
-  def shortest_path(sourceId: VertexId): Graph[Double,Double] = {
-
-    val initialGraph = EccGraph.mapVertices((id, _) => if (id == sourceId) 0 else Double.PositiveInfinity)
-    val sssp = initialGraph.pregel(Double.PositiveInfinity)(
+    val sssp = graph.pregel(Double.PositiveInfinity)(
 
       (id, dist, newDist) => math.min(dist, newDist), // Vertex Program
 
@@ -417,6 +455,7 @@ object GraphPatternMatching {
     
     return data
   }
+
   def build_QueryGraph(sc:SparkContext): Graph[String, String] = {
 
     // Create an RDD for the vertices
@@ -433,15 +472,5 @@ object GraphPatternMatching {
 
     return query
   }
-  def build_EccGraph(sc:SparkContext): Graph[Double, Double] = {
 
-    // Create an RDD for the vertices
-    val vertices_map: RDD[(VertexId, Double)] =
-      sc.parallelize(Array((1L, Double.PositiveInfinity), (2L,Double.PositiveInfinity)))
-
-    // Create an RDD for edges
-    val edges_map: RDD[Edge[Double]] =sc.parallelize(Array(Edge(1, 2, 1.0),    Edge(2, 1, 1.0)))
-
-    return Graph(vertices_map, edges_map)
-  }
 }
