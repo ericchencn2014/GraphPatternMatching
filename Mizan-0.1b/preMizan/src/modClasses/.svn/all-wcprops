@@ -1,0 +1,113 @@
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/!svn/ver/2/trunk/Mizan-0.1b/preMizan/src/modClasses
+END
+LongArrayWriter2.java
+K 25
+svn:wc:ra_dav:version-url
+V 78
+/svn/!svn/ver/2/trunk/Mizan-0.1b/preMizan/src/modClasses/LongArrayWriter2.java
+END
+mapKeyComparatorBinVLong.java
+K 25
+svn:wc:ra_dav:version-url
+V 86
+/svn/!svn/ver/2/trunk/Mizan-0.1b/preMizan/src/modClasses/mapKeyComparatorBinVLong.java
+END
+VLongArrayWritable.java
+K 25
+svn:wc:ra_dav:version-url
+V 80
+/svn/!svn/ver/2/trunk/Mizan-0.1b/preMizan/src/modClasses/VLongArrayWritable.java
+END
+mapKeyComparatorVLong.java
+K 25
+svn:wc:ra_dav:version-url
+V 83
+/svn/!svn/ver/2/trunk/Mizan-0.1b/preMizan/src/modClasses/mapKeyComparatorVLong.java
+END
+LongArrayWriterJSON.java
+K 25
+svn:wc:ra_dav:version-url
+V 81
+/svn/!svn/ver/2/trunk/Mizan-0.1b/preMizan/src/modClasses/LongArrayWriterJSON.java
+END
+mapKeyPartitionerBinVLongLongArray.java
+K 25
+svn:wc:ra_dav:version-url
+V 96
+/svn/!svn/ver/2/trunk/Mizan-0.1b/preMizan/src/modClasses/mapKeyPartitionerBinVLongLongArray.java
+END
+mapKeyComparatorBinLong.java
+K 25
+svn:wc:ra_dav:version-url
+V 85
+/svn/!svn/ver/2/trunk/Mizan-0.1b/preMizan/src/modClasses/mapKeyComparatorBinLong.java
+END
+mapKeyPartitionerIntVLongArray.java
+K 25
+svn:wc:ra_dav:version-url
+V 92
+/svn/!svn/ver/2/trunk/Mizan-0.1b/preMizan/src/modClasses/mapKeyPartitionerIntVLongArray.java
+END
+LongArrayWritable.java
+K 25
+svn:wc:ra_dav:version-url
+V 79
+/svn/!svn/ver/2/trunk/Mizan-0.1b/preMizan/src/modClasses/LongArrayWritable.java
+END
+mapKeyComparatorInt.java
+K 25
+svn:wc:ra_dav:version-url
+V 81
+/svn/!svn/ver/2/trunk/Mizan-0.1b/preMizan/src/modClasses/mapKeyComparatorInt.java
+END
+LongArrayWriter.java
+K 25
+svn:wc:ra_dav:version-url
+V 77
+/svn/!svn/ver/2/trunk/Mizan-0.1b/preMizan/src/modClasses/LongArrayWriter.java
+END
+mapKeyPartitionerVLongLongArray.java
+K 25
+svn:wc:ra_dav:version-url
+V 93
+/svn/!svn/ver/2/trunk/Mizan-0.1b/preMizan/src/modClasses/mapKeyPartitionerVLongLongArray.java
+END
+mapKeyComparatorLong.java
+K 25
+svn:wc:ra_dav:version-url
+V 82
+/svn/!svn/ver/2/trunk/Mizan-0.1b/preMizan/src/modClasses/mapKeyComparatorLong.java
+END
+extraKeyTextWriter.java
+K 25
+svn:wc:ra_dav:version-url
+V 80
+/svn/!svn/ver/2/trunk/Mizan-0.1b/preMizan/src/modClasses/extraKeyTextWriter.java
+END
+mapKeyPartitionerBinLongLongArray.java
+K 25
+svn:wc:ra_dav:version-url
+V 95
+/svn/!svn/ver/2/trunk/Mizan-0.1b/preMizan/src/modClasses/mapKeyPartitionerBinLongLongArray.java
+END
+mapKeyPartitionerIntLongArray.java
+K 25
+svn:wc:ra_dav:version-url
+V 91
+/svn/!svn/ver/2/trunk/Mizan-0.1b/preMizan/src/modClasses/mapKeyPartitionerIntLongArray.java
+END
+noKeyLongWriter.java
+K 25
+svn:wc:ra_dav:version-url
+V 77
+/svn/!svn/ver/2/trunk/Mizan-0.1b/preMizan/src/modClasses/noKeyLongWriter.java
+END
+mapKeyPartitionerLongLongArray.java
+K 25
+svn:wc:ra_dav:version-url
+V 92
+/svn/!svn/ver/2/trunk/Mizan-0.1b/preMizan/src/modClasses/mapKeyPartitionerLongLongArray.java
+END
